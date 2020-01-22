@@ -3,7 +3,7 @@
 
 matrix_synapse_enabled: true
 
-matrix_synapse_docker_image: "matrixdotorg/synapse:v1.5.0"
+matrix_synapse_docker_image: "matrixdotorg/synapse:v1.8.0"
 matrix_synapse_docker_image_force_pull: "{{ matrix_synapse_docker_image.endswith(':latest') }}"
 
 matrix_synapse_base_path: "{{ matrix_base_data_path }}/synapse"
@@ -39,6 +39,13 @@ matrix_synapse_container_federation_api_tls_host_bind_port: ''
 #
 # Takes an "<ip>:<port>" or "<port>" value (e.g. "127.0.0.1:9100"), or empty string to not expose.
 matrix_synapse_container_metrics_api_host_bind_port: ''
+
+# Controls whether the matrix-synapse container exposes the manhole port (tcp/9000 in the container).
+#
+# Takes effect only if the manhole is enabled (matrix_synapse_manhole_enabled).
+#
+# Takes an "<ip>:<port>" or "<port>" value (e.g. "127.0.0.1:9100"), or empty string to not expose.
+matrix_synapse_container_manhole_api_host_bind_port: ''
 
 # A list of extra arguments to pass to the container
 matrix_synapse_container_extra_arguments: []
@@ -79,7 +86,12 @@ matrix_synapse_tmp_directory_size_mb: "{{ matrix_synapse_max_upload_size_mb * 50
 # Log levels
 # Possible options are defined here https://docs.python.org/3/library/logging.html#logging-levels
 # warning: setting log level to DEBUG will make synapse log sensitive information such
-# as access tokens
+# as access tokens.
+#
+# Increasing verbosity may lead to an excessive amount of log messages being generated,
+# some of which may get dropped by systemd-journald on certain distributions (like CentOS 7).
+# You can work around it by adding `RateLimitInterval=0` and `RateLimitBurst=0` under `[Storage]` in
+# `/etc/systemd/journald.conf` and restarting the logging service (`systemctl restart systemd-journald`).
 matrix_synapse_log_level: "WARNING"
 matrix_synapse_storage_sql_log_level: "WARNING"
 matrix_synapse_root_log_level: "WARNING"
@@ -131,6 +143,15 @@ matrix_synapse_report_stats: false
 # disabling this will decrease server load significantly.
 matrix_synapse_use_presence: true
 
+# Controls whether accessing the server's public rooms directory can be done without authentication.
+# For private servers, you most likely wish to require authentication,
+# unless you know what list of rooms you're publishing to the world and explicitly want to do it.
+matrix_synapse_allow_public_rooms_without_auth: false
+
+# Controls whether remote servers can fetch this server's public rooms directory via federation.
+# For private servers, you most likely wish to forbid it.
+matrix_synapse_allow_public_rooms_over_federation: false
+
 # Controls whether people with access to the homeserver can register by themselves.
 matrix_synapse_enable_registration: false
 
@@ -180,7 +201,7 @@ matrix_synapse_federation_domain_whitelist: ~
 #
 # Note: internally, this uses the `-v` flag for mounting the specified volumes.
 # It's better (safer) to use the `--mount` flag for mounting volumes.
-# To use `--mount`, specifiy it in `matrix_synapse_container_extra_arguments`.
+# To use `--mount`, specify it in `matrix_synapse_container_extra_arguments`.
 # Example: `matrix_synapse_container_extra_arguments: ['--mount type=bind,src=/outside,dst=/inside,ro']
 matrix_synapse_container_additional_volumes: []
 
@@ -208,9 +229,14 @@ matrix_synapse_push_include_content: true
 matrix_synapse_url_preview_enabled: true
 
 # Enable exposure of metrics to Prometheus
-# See https://github.com/matrix-org/synapse/blob/master/docs/metrics-howto.rst
+# See https://github.com/matrix-org/synapse/blob/master/docs/metrics-howto.md
 matrix_synapse_metrics_enabled: false
 matrix_synapse_metrics_port: 9100
+
+# Enable the Synapse manhole
+# See https://github.com/matrix-org/synapse/blob/master/docs/manhole.md
+matrix_synapse_manhole_enabled: false
+
 
 # Send ERROR logs to sentry.io for easier tracking
 # To set this up: go to sentry.io, create a python project, and set
@@ -300,7 +326,7 @@ matrix_synapse_room_list_publication_rules:
     room_id: "*"
     action: allow
 
-matrix_synapse_default_room_version: "4"
+matrix_synapse_default_room_version: "5"
 
 # Controls the Synapse `spam_checker` setting.
 #
